@@ -51,7 +51,7 @@ public class OSMObjectBuilder {
         } else {
             obj.setObjectType(OSMObject.BUILDING);
 
-        }
+        } //we alreadly filter the osm with landuse and buidling, so remove it?
 
         String type = getTypeFromTags(way.tags());
 
@@ -106,15 +106,16 @@ public class OSMObjectBuilder {
                 building = true;
             }
 
-            if (Mapping.tag2Type.containsKey(fullTag)) {
+            if (Mapping.tag2Type.containsKey(fullTag)) { //tag2Type is a static map, so can be used here
                 String tmp = Mapping.tag2Type.get(fullTag);
                 if (type != null && !type.contains(tmp)) {
-                    type = type + ";" + tmp;
+                    type = type + ";" + tmp;// a building has several types
                 } else {
                     type = tmp;
                 }
             }
         }
+
         if (type == null) {
             if (building) {
                 type = "unclassified";

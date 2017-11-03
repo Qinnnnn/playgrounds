@@ -26,15 +26,19 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.*;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.PrintWriter;
 
-public class FacilityGenerator {
+public class HomeplaceGenerator {
 
-    private static final Logger logger = Logger.getLogger(FacilityGenerator.class);
+    private static final Logger logger = Logger.getLogger(HomeplaceGenerator.class);
+
 
     public static void main(String[] args) throws Exception {
 
         if (args.length != 4) {
-            System.out.println("Wrong arguments provided. Pattern: [0] path to osm file [1] output xml path [2] minimum area for unclassified buildings [3] tag2type csv file");
+            System.out.println("Wrong arguments provided. Pattern: [0] path to osm file [1] output csv path [2] minimum area for unclassified buildings [3] tag2type csv file");
             return;
         }
 
@@ -46,18 +50,15 @@ public class FacilityGenerator {
         logger.info("Transforming objects...");
         transform(objects);
 
-        logger.info("Building facilities...");
+        logger.info("Building checking...");
 
-        ActivityFacilities facilities = FacilitiesUtils.createActivityFacilities(); //remove?
+        //ActivityFacilities facilities = FacilitiesUtils.createActivityFacilities(); //remove?
 
         Double minimumSize = Double.parseDouble(args[2]);
-        synthesize(facilities, objects, minimumSize);
 
-        logger.info(String.format("Created %s facilities.", facilities.getFacilities().size()));
+        synthesize(args[1], objects, minimumSize);
 
-        FacilitiesWriter writer = new FacilitiesWriter(facilities);
-
-        writer.write(args[1]);
+        logger.info(String.format(""));
 
     }
 
@@ -66,12 +67,12 @@ public class FacilityGenerator {
         Mapping.initTag2TypeFromCsv(tag2Type);
 
         XMLParser parser = new XMLParser();
-        parser.setValidating(false); // why
+        parser.setValidating(false);
         parser.readFile(input);
 
 
         Collection<OSMWay> ways = parser.getWays().values();
-        Collection<OSMNode> nodes = parser.getNodes().values();//remove or not? node has height?
+        //Collection<OSMNode> nodes = parser.getNodes().values();
 
         OSMObjectBuilder builder = new OSMObjectBuilder();
         Set<OSMObject> objects = new HashSet<OSMObject>();
@@ -101,7 +102,6 @@ public class FacilityGenerator {
 //        }
 //        nodes.clear();
 
-        logger.info(String.format("Total built %s objects, %s failures.", objects.size(), failures));
         logger.info(String.format("Total built %s objects, %s failures.", objects.size(), failures));
         for (Map.Entry<String, Integer> counters : builder.getTypeCounter().entrySet()) {
             logger.info(String.format("Built %d objects of type %s.", counters.getValue(), counters.getKey()));
@@ -141,21 +141,21 @@ public class FacilityGenerator {
         }
     }
 
-    public static void synthesize(ActivityFacilities facilities, Collection<OSMObject> objects, double minimumSize) {
-        Quadtree quadTree = new Quadtree(); //??
-
-        logger.info("Inserting areas in quad tree..."); //??
-        ProgressLogger.init(objects.size(), 1, 10);
-        for (OSMObject obj : objects) {
-            if (obj.getObjectType().equalsIgnoreCase(OSMObject.AREA)) {
-                Envelope env = obj.getGeometry().getEnvelopeInternal();
-                if (env != null) {
-                    quadTree.insert(env, obj); // exponent out of bounds exception?
-                }
-            }
-            ProgressLogger.step();
-        }
-
+    public static void synthesize(String output, Collection<OSMObject> objects, double minimumSize) throws FileNotFoundException {
+        Quadtree quadTree = new Quadtree();
+//
+//        logger.info("Inserting areas in quad tree...");
+//        ProgressLogger.init(objects.size(), 1, 10);
+//        for (OSMObject obj : objects) {
+//            if (obj.getObjectType().equalsIgnoreCase(OSMObject.AREA)) {
+//                Envelope env = obj.getGeometry().getEnvelopeInternal();
+//                if (env != null) {
+//                    quadTree.insert(env, obj); // exponent out of bounds exception?
+//                }
+//            }
+//            ProgressLogger.step();
+//        }
+//
         Map<OSMObject, Set<OSMObject>> areaBuildingMap = new HashMap<OSMObject, Set<OSMObject>>();
 
         logger.info("Assigning buildings to areas...");
@@ -164,7 +164,7 @@ public class FacilityGenerator {
             if (obj.getObjectType().equalsIgnoreCase(OSMObject.BUILDING)) {
                 List<OSMObject> areas = quadTree.query(obj.getGeometry().getEnvelopeInternal());
 
-                for (OSMObject area : areas) { //???
+                for (OSMObject area : areas) {
                     if (area.getGeometry().contains(obj.getGeometry())) {
                         Set<OSMObject> buildings = areaBuildingMap.get(area);
                         if (buildings == null) {
@@ -177,60 +177,61 @@ public class FacilityGenerator {
             }
             ProgressLogger.step();
         }
-
-//        int idCounter = 0;
-
-        int inheritFromAreaCounter = 0;
-        int fallBackToHomeCounter = 0;
-        int building2FacilityCounter = 0;
-
-        logger.info("Creating buildings in areas...");
-        ProgressLogger.init(areaBuildingMap.size(), 1, 10);
-        for (Map.Entry<OSMObject, Set<OSMObject>> entry : areaBuildingMap.entrySet()) {
-            OSMObject area = entry.getKey();
-//            double A = area.getGeometry().getArea();
-//            double size = defaultSize * defaultSize;
-//            double n = A / size;
-
-//            if (entry.getValue().size() < n) {
-//                int n2 = (int) (n - entry.getValue().size());
 //
-//                for (int i = 0; i < n2; i++) {
-//                    Coord c = generateRandomCoordinate(area.getGeometry());
-//                    ActivityFacility facility = facilities.getFactory().createActivityFacility(
-//                            Id.create("new" + idCounter++, ActivityFacility.class), c);
-//                    facilities.addActivityFacility(facility);
+////        int idCounter = 0;
+//
+//        int inheritFromAreaCounter = 0;
+//        int fallBackToHomeCounter = 0;
+//        int building2FacilityCounter = 0;
+//
+//        logger.info("Creating buildings in areas...");
+//        ProgressLogger.init(areaBuildingMap.size(), 1, 10);
+//        for (Map.Entry<OSMObject, Set<OSMObject>> entry : areaBuildingMap.entrySet()) {
+//            OSMObject area = entry.getKey();
+////            double A = area.getGeometry().getArea();
+////            double size = defaultSize * defaultSize;
+////            double n = A / size;
+//
+////            if (entry.getValue().size() < n) {
+////                int n2 = (int) (n - entry.getValue().size());
+////
+////                for (int i = 0; i < n2; i++) {
+////                    Coord c = generateRandomCoordinate(area.getGeometry());
+////                    ActivityFacility facility = facilities.getFactory().createActivityFacility(
+////                            Id.create("new" + idCounter++, ActivityFacility.class), c);
+////                    facilities.addActivityFacility(facility);
+////                }
+////            }
+//
+//            for (OSMObject building : entry.getValue()) {
+//                Coord c = MatsimCoordUtils.pointToCoord(building.getGeometry().getCentroid());
+//                Id<ActivityFacility> id = Id.create(building.getId(), ActivityFacility.class);
+//                String buildingType = building.getFacilityType();
+//                String areaType = area.getFacilityType();
+//                if (facilities.getFacilities().get(id) == null) {
+//                    objects.remove(building);
+//                    if (buildingType.equals("unclassified")) {
+//                        buildingType = areaType;
+//                        inheritFromAreaCounter++;
+//                    }
+//                    createActivityFacility(facilities, id, c, buildingType);
+//                    building2FacilityCounter++;
 //                }
 //            }
-
-            for (OSMObject building : entry.getValue()) {
-                Coord c = MatsimCoordUtils.pointToCoord(building.getGeometry().getCentroid());
-                Id<ActivityFacility> id = Id.create(building.getId(), ActivityFacility.class);
-                String buildingType = building.getFacilityType();
-                String areaType = area.getFacilityType();
-                if (facilities.getFacilities().get(id) == null) {
-                    objects.remove(building);
-                    if (buildingType.equals("unclassified")) {
-                        buildingType = areaType;
-                        inheritFromAreaCounter++;
-                    }
-                    createActivityFacility(facilities, id, c, buildingType);
-                    building2FacilityCounter++;
-                }
-            }
-        }
-        ProgressLogger.step();
-
-        logger.info(String.format("Built %d facilities from buildings in areas. %d classified from area", building2FacilityCounter, inheritFromAreaCounter));
+//        }
+//        ProgressLogger.step();
+//
+//        logger.info(String.format("Built %d facilities from buildings in areas. %d classified from area", building2FacilityCounter, inheritFromAreaCounter));
 
         Quadtree buildingTree = new Quadtree();
 
-        fallBackToHomeCounter = 0;
-        building2FacilityCounter = 0;
+        int fallBackToHomeCounter = 0;
+        int building2FacilityCounter = 0;
 
 
         logger.info("Processing buildings...");
         int skippedSmall = 0;
+        StringBuilder record = new StringBuilder();
         ProgressLogger.init(objects.size(), 1, 10);
         for (OSMObject building : objects) {
             if (building.getObjectType().equalsIgnoreCase(OSMObject.BUILDING)) {
@@ -247,58 +248,65 @@ public class FacilityGenerator {
                     }
                 }
 
-                createActivityFacility(facilities, Id.create(building.getId(), ActivityFacility.class), c, buildingType);
+
+                record.append(building.getId()+","+building.getObjectType()+","+buildingType+","+c.getX()+","+c.getY());
+                record.append('\n');
+
                 building2FacilityCounter++;
                 buildingTree.insert(building.getGeometry().getEnvelopeInternal(), building);
             }
             ProgressLogger.step();
         }
+
+
+        writeToFile(output,record.toString());
+
         logger.info(String.format("Built %d facilities. %d classified as 'home' fallback. Skipped %d too small unclassified", building2FacilityCounter, fallBackToHomeCounter, skippedSmall));
 
-        int poiCounter = 0;
-        int poiIgnored = 0;
-        int poiFailure = 0;
-        logger.info("Processing POIs...");
-        ProgressLogger.init(objects.size(), 1, 10);
-        for (OSMObject poi : objects) {
-            if (poi.getObjectType().equalsIgnoreCase(OSMObject.POI)) {
-                List<OSMObject> result = buildingTree.query(poi.getGeometry().getEnvelopeInternal());
-                boolean hit = false;
-                for (OSMObject geo : result) {
-                    if (geo.getGeometry().contains(poi.getGeometry()) && poi.getFacilityType().equals(geo.getFacilityType())) {
-                        hit = true;
-                        poiIgnored++;
-                        break;
-                    }
-                }
-
-                // check if in area
-//                if (!hit) {
-//                    result = quadTree.query(poi.getGeometry().getEnvelopeInternal());
-//                    hit = false;
-//                    for (OSMObject geo : result) {
-//                        if (geo.getGeometry().contains(poi.getGeometry())) {
-//                            hit = true;
-//                            poiIgnored++;
-//                            break;
-//                        }
+//        int poiCounter = 0;
+//        int poiIgnored = 0;
+//        int poiFailure = 0;
+//        logger.info("Processing POIs...");
+//        ProgressLogger.init(objects.size(), 1, 10);
+//        for (OSMObject poi : objects) {
+//            if (poi.getObjectType().equalsIgnoreCase(OSMObject.POI)) {
+//                List<OSMObject> result = buildingTree.query(poi.getGeometry().getEnvelopeInternal());
+//                boolean hit = false;
+//                for (OSMObject geo : result) {
+//                    if (geo.getGeometry().contains(poi.getGeometry()) && poi.getFacilityType().equals(geo.getFacilityType())) {
+//                        hit = true;
+//                        poiIgnored++;
+//                        break;
 //                    }
 //                }
-
-                if (!hit) {
-                    String type = poi.getFacilityType();
-                    if (type.equals("unclassified")) {
-                        poiFailure++;
-                        continue;
-                    }
-                    Coord c = MatsimCoordUtils.pointToCoord(poi.getGeometry().getCentroid());
-                    createActivityFacility(facilities, Id.create("poi" + poi.getId(), ActivityFacility.class), c, type);
-                    poiCounter++;
-                }
-            }
-            ProgressLogger.step();
-        }
-        logger.info(String.format("Created %d POI. %d ignored, %d failed due to unrecognised activity type.", poiCounter, poiIgnored, poiFailure));
+//
+//                // check if in area
+////                if (!hit) {
+////                    result = quadTree.query(poi.getGeometry().getEnvelopeInternal());
+////                    hit = false;
+////                    for (OSMObject geo : result) {
+////                        if (geo.getGeometry().contains(poi.getGeometry())) {
+////                            hit = true;
+////                            poiIgnored++;
+////                            break;
+////                        }
+////                    }
+////                }
+//
+//                if (!hit) {
+//                    String type = poi.getFacilityType();
+//                    if (type.equals("unclassified")) {
+//                        poiFailure++;
+//                        continue;
+//                    }
+//                    Coord c = MatsimCoordUtils.pointToCoord(poi.getGeometry().getCentroid());
+//                    createActivityFacility(facilities, Id.create("poi" + poi.getId(), ActivityFacility.class), c, type);
+//                    poiCounter++;
+//                }
+//            }
+//            ProgressLogger.step();
+//        }
+//        logger.info(String.format("Created %d POI. %d ignored, %d failed due to unrecognised activity type.", poiCounter, poiIgnored, poiFailure));
     }
 
 
@@ -311,6 +319,14 @@ public class FacilityGenerator {
             facility.addActivityOption(new ActivityOptionImpl(type));
         }
         facilities.addActivityFacility(facility);
+    }
+
+    public static void writeToFile(String path, String building) throws FileNotFoundException  {
+        String newLine = System.getProperty("line.separator");
+        PrintWriter bd = new PrintWriter(new FileOutputStream(path, true));
+        bd.write(newLine+building);
+        bd.close();
+
     }
 
 //    private Coord generateRandomCoordinate(Geometry geometry) {
